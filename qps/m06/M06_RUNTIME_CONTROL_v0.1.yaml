@@ -1,0 +1,55 @@
+schema: qps.m06.observer_runtime_control.v1
+mission: M06_TELEGRAF_OBSERVER
+state: EXECUTION_PENDING
+purpose: >-
+  Prove or reject one bounded Telegraf observer slice without adopting the full
+  plugin estate. The useful slice is deterministic QPS metric emission through
+  inputs.exec -> Telegraf -> outputs.file.
+
+source_boundary:
+  local_fork_baseline_before_m06: ae0036abf2956acb86941623f4903990e1e4fbaa
+  recon_merge_baseline: 608441ff5e047ace484872f1e284eb443b602691
+  upstream_delta_observed_at_recon: 555_commits_on_upstream_side
+  authority: EXPERIMENTAL_OBSERVER_ONLY
+
+victory_predicate:
+  - checkout_exact_PR_head
+  - assert_git_HEAD_equals_source_head
+  - build_real_telegraf_binary
+  - execute_binary_with_once_mode
+  - inputs_exec_emits_one_qps_metric
+  - outputs_file_persists_metric
+  - output_content_assertion_passes
+  - exact_source_binary_and_output_digests_returned
+  - retained_workflow_artifact_exists
+
+value_gate:
+  KEEP_ADAPT_if:
+    - adds_machine_readable_time_series_or_cross_runtime_observability_not_already_cheaply_available
+    - bounded_operational_cost_is_low
+    - does_not_become_authority_for_QPS_state
+  REFERENCE_PARK_if:
+    - merely_duplicates_append_only_receipts_without_new_observability_value
+    - requires_large_fork_maintenance_for_small_gain
+
+first_red_routing:
+  runner_or_zero_steps: Dockmaster
+  compile_or_dependency: Dockmaster_plus_Doctor
+  config_or_plugin_behavior: Doctor
+  metric_semantics_or_value: Analyst_plus_Scientist
+  federation_interface: Engineer
+  authority_scope: TM_plus_Governor
+
+DoV:
+  DoV_1: bounded_exact_head_runtime_plus_retained_receipt
+  DoV_2: separate_QPS_consumer_uses_metric_without_Telegraf_becoming_authority
+  DoV_3: fresh_head_or_recurrent_repeat_if_value_gate_is_positive
+
+crew:
+  active: [Smoker, Observer, Analyst, QA]
+  reserve: [Doctor, Dockmaster, Engineer, Scientist]
+  PM_DOW: rank_by_marginal_value_not_repo_size
+  TM_KEB: no_engineering_truth_transfer_to_telemetry
+
+BG: BG_M06_RUNTIME_AND_INCREMENTAL_VALUE_UNPROVEN
+CG: CG_M06_EXACT_HEAD_EXEC_FILE_SMOKE

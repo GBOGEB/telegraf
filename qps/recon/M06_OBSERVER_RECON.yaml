@@ -1,0 +1,60 @@
+schema: qps.expedition.foreign_recon.v1
+mission:
+  id: M06
+  name: TELEGRAF_OBSERVER
+  priority: P1
+  state: PARTIAL
+  objective: prove_one_small_observer_telemetry_path_for_QPS_mission_runtime_metrics
+source:
+  local_repo: GBOGEB/telegraf
+  local_master_sha: ae0036abf2956acb86941623f4903990e1e4fbaa
+  upstream_repo: influxdata/telegraf
+  licence: MIT
+  upstream_delta_observed_commits: 555
+  rule: do_not_modify_or_sync_master_as_part_of_recon
+observed_capabilities:
+  exec_input:
+    path: plugins/inputs/exec/README.md
+    role: execute_commands_at_interval_and_parse_supported_metric_formats
+    candidate_QPS_use: poll_a_small_read_only_mission_metric_emitter
+  file_output:
+    path: plugins/outputs/file/README.md
+    role: write_metrics_to_stdout_or_local_files
+    candidate_QPS_use: deterministic_local_smoke_without_external_telemetry_backend
+mission_hypothesis: >-
+  Telegraf may serve as an optional Observer transport for normalized QPS runtime and expedition metrics,
+  but only if a bounded exec-input -> normalized metric -> file-output proof adds value over the existing
+  receipt/event pipeline. Do not adopt the whole agent or plugin estate by default.
+first_proof_slice:
+  input: deterministic_read_only_command_emitting_one_QPS_mission_metric_row
+  transform: none_unless_required
+  output: local_file_or_stdout
+  required_fields: [mission_id, pulse_id, runner_assigned, executed_steps, bg_count, dod_fraction, dov_level]
+  required_evidence: [exact_telegraf_sha, config_sha256, input_fixture_sha256, output_sha256, executed_steps]
+crew:
+  active: [Scout_2_Surveyor, Reader_2_EntryPoint_Reader, Observer, Analyst]
+  reserve: [Dockmaster, The_Engineer, Governor]
+BG:
+  - id: BG-M06-VALUE-UNPROVEN
+    owner: Analyst
+    statement: no_measured_QPS_observer_slice_yet_proves_Telegraf_is_better_than_the_existing_receipt_pipeline
+  - id: BG-M06-UPSTREAM-DRIFT
+    owner: Scout_3_Border_Scout
+    statement: local_fork_is_materially_behind_observed_upstream_and_should_not_become_new_authority_unsynced
+CG:
+  - CG-M06-BOUNDED-LOCAL-SMOKE
+  - CG-M06-VALUE-DISPOSITION
+DoD:
+  repo_identity: PASS
+  upstream_boundary: PASS
+  minimal_input_output_path: PASS_STATIC
+  runtime_smoke: NOT_EXECUTED
+  value_comparison: NOT_EXECUTED
+DoV:
+  level: 0
+  next_victory: one_exact_SHA_Telegraf_process_executes_the_bounded_fixture_and_emits_expected_metric_output
+routing:
+  runtime_or_build_red: Dockmaster
+  plugin_or_config_defect: Doctor
+  integration_value_positive: The_Engineer
+  no_value_over_existing_pipeline: Reaper_REFERENCE_OR_PARK

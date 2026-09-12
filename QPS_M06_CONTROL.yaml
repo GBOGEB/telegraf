@@ -1,0 +1,73 @@
+schema: qps.m06.control.v1
+mission: M06_TELEGRAF_OBSERVER
+state: DOV1_PASS_REFERENCE_CONTROL
+source_head: 9a2f306c551549cca696173023b3d7ec80327c88
+merge_head: 1f4a7372548a382adc37d7e4ce428e06fca89d5f
+runtime:
+  run_id: 34685712612
+  job_id: 103532230883
+  runner_id: 1000252910
+  conclusion: SUCCESS
+  started_at: 2026-09-12T09:23:20Z
+  completed_at: 2026-09-12T09:30:10Z
+  elapsed_seconds: 410
+  build_seconds: 379
+  exact_head_checkout: PASS
+  exact_head_assert: PASS
+  telegraf_build: PASS
+  bounded_exec_input: PASS
+  file_output: PASS
+  metric_assertion: PASS
+  receipt_binding: PASS
+  artifact_upload: PASS
+artifact:
+  id: 10295491978
+  name: qps-m06-observer-9a2f306c551549cca696173023b3d7ec80327c88
+  size_bytes: 150847227
+  digest: sha256:b53cffa5e8a9aa90f1585fc1e5abc9dcc2a24a2aef5ca2464327c3effea5d6a0
+
+value_assessment:
+  capability_proven: true
+  incremental_value_for_canonical_QPS_iteration_receipts: LOW
+  reasons:
+    - one_metric_execution_is_fast_but_exact_source_build_cost_is_high
+    - retained_artifact_is_about_150MB_because_the_full_binary_is_included
+    - canonical_QPS_state_already_has_a_cheaper_append_only_receipt_event_plane
+    - Telegraf_is_stronger_as_an_operational_time_series_observer_than_as_mission_state_authority
+  decision: REFERENCE_AND_PARK_CURRENT_MISSION_SLICE
+  future_reentry_condition: >-
+    Re-enter only when a real multi-signal or long-running observability case exists,
+    such as runner latency, process/host metrics, OPC-UA, Docker, or operational telemetry
+    where aggregation/time-series behavior justifies the agent and build footprint.
+
+authority:
+  qps_state_authority: FORBIDDEN
+  telemetry_observer_role: ACCEPTED_BOUNDED
+  engineering_truth_authority: FORBIDDEN
+
+management:
+  PM_DOW: RETURN_CREW
+  TM_KEB: ACCEPT_DOV1_CAPABILITY_ONLY
+  Analyst:
+    DMAIC: CONTROL_REFERENCE
+    BT: remove_M06_from_active_implementation_pressure
+    PCA: retain_iteration_as_measured_row
+  QA: ACCEPT_EXACT_HEAD_RUNTIME_RECEIPT
+  Governor: REFERENCE_PARK_NO_DOV2_FOR_CURRENT_SLICE
+
+crew_transition:
+  returning: [Smoker, Observer, Analyst, QA]
+  reserve_for_future_reentry: [Engineer, Dockmaster]
+  control_cell: [PM_DOW]
+
+DoD: PASS
+DoV:
+  DoV_1: PASS
+  DoV_2: NOT_PURSUED_LOW_INCREMENTAL_VALUE
+  DoV_3: NOT_REQUIRED_FOR_PARKED_SLICE
+
+BG_retired:
+  - BG_M06_RUNTIME_UNPROVEN
+BG_remaining:
+  - BG_M06_INCREMENTAL_VALUE_TOO_LOW_FOR_CURRENT_CANONICAL_RECEIPT_USE
+next_CG: RETURN_AND_REALLOCATE_CREW

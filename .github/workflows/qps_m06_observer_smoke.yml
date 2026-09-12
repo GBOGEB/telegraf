@@ -1,0 +1,95 @@
+name: QPS M06 Bounded Observer Smoke
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/qps_m06_observer_smoke.yml"
+      - "qps/m06/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bounded-observer-smoke:
+    runs-on: ubuntu-latest
+    env:
+      SOURCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Checkout exact source head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Assert exact source head
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_HEAD_SHA"
+
+      - name: Setup Go from project module
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Build Telegraf
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/m06
+          go build -o artifacts/m06/telegraf ./cmd/telegraf
+
+      - name: Execute bounded observer once
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./artifacts/m06/telegraf --config qps/m06/observer.conf --once
+
+      - name: Assert observed metric
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s artifacts/m06/qps_observer.out
+          grep -F 'qps_iteration,mission=M06,source=telegraf' artifacts/m06/qps_observer.out
+          grep -F 'pulse=1i' artifacts/m06/qps_observer.out
+          grep -F 'bg_open=1i' artifacts/m06/qps_observer.out
+          grep -F 'dov=0i' artifacts/m06/qps_observer.out
+
+      - name: Bind M06 exact-head receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib, json, os, pathlib, subprocess
+          binary = pathlib.Path('artifacts/m06/telegraf')
+          output = pathlib.Path('artifacts/m06/qps_observer.out')
+          def sha256(path):
+              return hashlib.sha256(path.read_bytes()).hexdigest()
+          receipt = {
+              'schema': 'qps.m06.observer_receipt.v1',
+              'mission': 'M06_TELEGRAF_OBSERVER',
+              'repo': os.environ['GITHUB_REPOSITORY'],
+              'source_head_sha': os.environ['SOURCE_HEAD_SHA'],
+              'observed_git_head': subprocess.check_output(['git','rev-parse','HEAD'], text=True).strip(),
+              'run_id': os.environ['GITHUB_RUN_ID'],
+              'run_attempt': os.environ['GITHUB_RUN_ATTEMPT'],
+              'binary_sha256': sha256(binary),
+              'output_sha256': sha256(output),
+              'output_lines': [line for line in output.read_text(encoding='utf-8').splitlines() if line.strip()],
+              'transport': 'inputs.exec_to_outputs.file',
+              'authority': 'OBSERVER_ONLY_NOT_QPS_AUTHORITY',
+              'status': 'PASS',
+          }
+          pathlib.Path('artifacts/m06/M06_OBSERVER_RECEIPT.json').write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + '\n', encoding='utf-8'
+          )
+          PY
+          sha256sum artifacts/m06/M06_OBSERVER_RECEIPT.json > artifacts/m06/M06_OBSERVER_RECEIPT.sha256
+
+      - name: Upload M06 retained evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: qps-m06-observer-${{ env.SOURCE_HEAD_SHA }}
+          path: artifacts/m06/
+          if-no-files-found: error

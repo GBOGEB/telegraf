@@ -41,6 +41,8 @@ func TestTCPDialoutOverflow(t *testing.T) {
 		MaxMsgSize:     1000,
 		Log:            testutil.Logger{},
 	}
+	require.NoError(t, plugin.Init())
+
 	var acc testutil.Accumulator
 	require.NoError(t, plugin.Start(&acc))
 	defer plugin.Stop()
@@ -79,6 +81,8 @@ func TestTCPDialoutMultiple(t *testing.T) {
 		},
 		Log: testutil.Logger{},
 	}
+	require.NoError(t, plugin.Init())
+
 	var acc testutil.Accumulator
 	require.NoError(t, plugin.Start(&acc))
 	defer plugin.Stop()
@@ -179,7 +183,7 @@ func TestTCPDialoutMultiple(t *testing.T) {
 				"source":       "hostname",
 				"subscription": "subscription",
 			},
-			map[string]interface{}{"value": int64(-1)},
+			map[string]any{"value": int64(-1)},
 			time.Unix(0, 1543236572000000000),
 		),
 		metric.New(
@@ -190,7 +194,7 @@ func TestTCPDialoutMultiple(t *testing.T) {
 				"source":       "hostname",
 				"subscription": "subscription",
 			},
-			map[string]interface{}{"value": int64(-1)},
+			map[string]any{"value": int64(-1)},
 			time.Unix(0, 1543236572000000000),
 		),
 		metric.New(
@@ -201,7 +205,7 @@ func TestTCPDialoutMultiple(t *testing.T) {
 				"source":       "hostname",
 				"subscription": "subscription",
 			},
-			map[string]interface{}{"value": int64(-1)},
+			map[string]any{"value": int64(-1)},
 			time.Unix(0, 1543236572000000000),
 		),
 	}
@@ -223,6 +227,8 @@ func TestGRPCDialoutError(t *testing.T) {
 		ServiceAddress: "127.0.0.1:0",
 		Log:            testutil.Logger{},
 	}
+	require.NoError(t, plugin.Init())
+
 	var acc testutil.Accumulator
 	require.NoError(t, plugin.Start(&acc))
 	defer plugin.Stop()
@@ -262,6 +268,8 @@ func TestGRPCDialoutMultiple(t *testing.T) {
 		},
 		Log: testutil.Logger{},
 	}
+	require.NoError(t, plugin.Init())
+
 	var acc testutil.Accumulator
 	require.NoError(t, plugin.Start(&acc))
 	defer plugin.Stop()
@@ -368,7 +376,7 @@ func TestGRPCDialoutMultiple(t *testing.T) {
 				"source":       "hostname",
 				"subscription": "subscription",
 			},
-			map[string]interface{}{"value": int64(-1)},
+			map[string]any{"value": int64(-1)},
 			time.Unix(0, 1543236572000000000),
 		),
 		metric.New(
@@ -379,7 +387,7 @@ func TestGRPCDialoutMultiple(t *testing.T) {
 				"source":       "hostname",
 				"subscription": "subscription",
 			},
-			map[string]interface{}{"value": int64(-1)},
+			map[string]any{"value": int64(-1)},
 			time.Unix(0, 1543236572000000000),
 		),
 		metric.New(
@@ -390,7 +398,7 @@ func TestGRPCDialoutMultiple(t *testing.T) {
 				"source":       "hostname",
 				"subscription": "subscription",
 			},
-			map[string]interface{}{"value": int64(-1)},
+			map[string]any{"value": int64(-1)},
 			time.Unix(0, 1543236572000000000),
 		),
 	}
@@ -415,6 +423,8 @@ func TestGRPCDialoutKeepalive(t *testing.T) {
 		},
 		Log: testutil.Logger{},
 	}
+	require.NoError(t, plugin.Init())
+
 	var acc testutil.Accumulator
 	require.NoError(t, plugin.Start(&acc))
 	defer plugin.Stop()
@@ -525,6 +535,7 @@ func TestCases(t *testing.T) {
 
 			plugin := cfg.Inputs[0].Input.(*CiscoTelemetryMDT)
 			plugin.ServiceAddress = "127.0.0.1:0"
+			require.NoError(t, plugin.Init())
 
 			// Start the plugin
 			var acc testutil.Accumulator

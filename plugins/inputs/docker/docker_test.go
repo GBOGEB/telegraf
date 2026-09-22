@@ -8,10 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/system"
 	"github.com/google/go-cmp/cmp"
-	moby_container "github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/system"
 	"github.com/stretchr/testify/require"
 
 	"github.com/influxdata/telegraf"
@@ -126,7 +125,6 @@ func TestCases(t *testing.T) {
 			// Setup the server
 			server, err := mock.NewServerFromFiles(filepath.Join(testcasePath, "data"))
 			require.NoError(t, err)
-			server.APIVersion = "1.24"
 
 			addr := server.Start(t)
 			defer server.Close()
@@ -244,13 +242,12 @@ func TestContainerLabels(t *testing.T) {
 			// Setup the server
 			server, err := mock.NewServerFromFiles("testdata")
 			require.NoError(t, err)
-			server.APIVersion = "1.24"
 
 			// Manipulate the data for the test
 			c := server.List[0]
 			c.Labels = tt.labels
 			c.State = "running"
-			server.List = []moby_container.Summary{c}
+			server.List = []container.Summary{c}
 
 			addr := server.Start(t)
 			defer server.Close()
@@ -353,7 +350,6 @@ func TestContainerNames(t *testing.T) {
 			// Setup the server
 			server, err := mock.NewServerFromFiles("testdata")
 			require.NoError(t, err)
-			server.APIVersion = "1.24"
 
 			addr := server.Start(t)
 			defer server.Close()
@@ -410,7 +406,7 @@ func TestContainerStatus(t *testing.T) {
 						"container_status":  "running",
 						"source":            "e2173b9478a6",
 					},
-					map[string]interface{}{
+					map[string]any{
 						"oomkilled":     false,
 						"pid":           1234,
 						"restart_count": 0,
@@ -441,7 +437,7 @@ func TestContainerStatus(t *testing.T) {
 						"container_status":  "running",
 						"source":            "e2173b9478a6",
 					},
-					map[string]interface{}{
+					map[string]any{
 						"oomkilled":     false,
 						"pid":           1234,
 						"exitcode":      0,
@@ -474,7 +470,7 @@ func TestContainerStatus(t *testing.T) {
 						"container_status":  "running",
 						"source":            "e2173b9478a6",
 					},
-					map[string]interface{}{
+					map[string]any{
 						"oomkilled":     false,
 						"pid":           1234,
 						"exitcode":      0,
@@ -505,7 +501,7 @@ func TestContainerStatus(t *testing.T) {
 						"container_status":  "running",
 						"source":            "e2173b9478a6",
 					},
-					map[string]interface{}{
+					map[string]any{
 						"oomkilled":     false,
 						"pid":           1234,
 						"exitcode":      0,
@@ -529,7 +525,6 @@ func TestContainerStatus(t *testing.T) {
 			// Setup the server
 			server, err := mock.NewServerFromFiles("testdata")
 			require.NoError(t, err)
-			server.APIVersion = "1.24"
 
 			// Manipulate data for the test
 			server.List = server.List[:1]
@@ -572,7 +567,7 @@ func TestGatherInfo(t *testing.T) {
 				"engine_host":    "absol",
 				"server_version": "17.09.0-ce",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"n_listener_events":       int(0),
 				"n_cpus":                  int(4),
 				"n_used_file_descriptors": int(19),
@@ -591,7 +586,7 @@ func TestGatherInfo(t *testing.T) {
 				"engine_host":    "absol",
 				"server_version": "17.09.0-ce",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"memory_total": int64(3840757760),
 			},
 			time.Unix(0, 0),
@@ -603,7 +598,7 @@ func TestGatherInfo(t *testing.T) {
 				"server_version": "17.09.0-ce",
 				"unit":           "bytes",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"pool_blocksize": int64(65540),
 			},
 			time.Unix(0, 0),
@@ -615,7 +610,7 @@ func TestGatherInfo(t *testing.T) {
 				"server_version": "17.09.0-ce",
 				"unit":           "bytes",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"used":      int64(17300000000),
 				"total":     int64(107400000000),
 				"available": int64(36530000000),
@@ -629,7 +624,7 @@ func TestGatherInfo(t *testing.T) {
 				"server_version": "17.09.0-ce",
 				"unit":           "bytes",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"used":      int64(20970000),
 				"total":     int64(2146999999),
 				"available": int64(2126999999),
@@ -643,7 +638,7 @@ func TestGatherInfo(t *testing.T) {
 				"server_version": "17.09.0-ce",
 				"pool_name":      "docker-8:1-1182287-pool",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"base_device_size_bytes":             int64(10740000000),
 				"pool_blocksize_bytes":               int64(65540),
 				"data_space_used_bytes":              int64(17300000000),
@@ -673,7 +668,7 @@ func TestGatherInfo(t *testing.T) {
 				"server_version":    "17.09.0-ce",
 				"container_status":  "running",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"usage_total":  uint64(1231652),
 				"container_id": "b7dfbb9478a6ae55e237d4d74f8bbb753f0817192b5081334dc78476296e2173",
 			},
@@ -695,7 +690,7 @@ func TestGatherInfo(t *testing.T) {
 				"server_version":    "17.09.0-ce",
 				"container_status":  "running",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"container_id":  "b7dfbb9478a6ae55e237d4d74f8bbb753f0817192b5081334dc78476296e2173",
 				"limit":         uint64(18935443456),
 				"max_usage":     uint64(0),
@@ -709,7 +704,6 @@ func TestGatherInfo(t *testing.T) {
 	// Setup the server
 	server, err := mock.NewServerFromFiles("testdata")
 	require.NoError(t, err)
-	server.APIVersion = "1.24"
 
 	addr := server.Start(t)
 	defer server.Close()
@@ -745,7 +739,7 @@ func TestGatherSwarmInfo(t *testing.T) {
 				"service_name": "test1",
 				"service_mode": "replicated",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"tasks_running": int(2),
 				"tasks_desired": uint64(2),
 			},
@@ -758,7 +752,7 @@ func TestGatherSwarmInfo(t *testing.T) {
 				"service_name": "test2",
 				"service_mode": "global",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"tasks_running": int(1),
 				"tasks_desired": uint64(1),
 			},
@@ -771,7 +765,7 @@ func TestGatherSwarmInfo(t *testing.T) {
 				"service_name": "test3",
 				"service_mode": "replicated_job",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"tasks_running":     int(0),
 				"max_concurrent":    uint64(2),
 				"total_completions": uint64(2),
@@ -785,7 +779,7 @@ func TestGatherSwarmInfo(t *testing.T) {
 				"service_name": "test4",
 				"service_mode": "global_job",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"tasks_running": int(0),
 			},
 			time.Unix(0, 0),
@@ -795,7 +789,6 @@ func TestGatherSwarmInfo(t *testing.T) {
 	// Setup the server
 	server, err := mock.NewServerFromFiles("testdata")
 	require.NoError(t, err)
-	server.APIVersion = "1.24"
 
 	addr := server.Start(t)
 	defer server.Close()
@@ -827,7 +820,7 @@ func TestGatherDiskUsage(t *testing.T) {
 				"engine_host":    "absol",
 				"server_version": "17.09.0-ce",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"layers_size": int64(1e10),
 			},
 			time.Unix(0, 0),
@@ -841,7 +834,7 @@ func TestGatherDiskUsage(t *testing.T) {
 				"server_version":    "17.09.0-ce",
 				"container_name":    "some_container",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"size_root_fs": int64(123456789),
 				"size_rw":      int64(0)},
 			time.Unix(0, 0),
@@ -855,7 +848,7 @@ func TestGatherDiskUsage(t *testing.T) {
 				"engine_host":    "absol",
 				"server_version": "17.09.0-ce",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"size":        int64(123456789),
 				"shared_size": int64(0)},
 			time.Unix(0, 0),
@@ -869,7 +862,7 @@ func TestGatherDiskUsage(t *testing.T) {
 				"engine_host":    "absol",
 				"server_version": "17.09.0-ce",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"size":        int64(425484494),
 				"shared_size": int64(0)},
 			time.Unix(0, 0),
@@ -881,7 +874,7 @@ func TestGatherDiskUsage(t *testing.T) {
 				"engine_host":    "absol",
 				"server_version": "17.09.0-ce",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"size": int64(123456789),
 			},
 			time.Unix(0, 0),
@@ -891,7 +884,6 @@ func TestGatherDiskUsage(t *testing.T) {
 	// Setup the server
 	server, err := mock.NewServerFromFiles("testdata")
 	require.NoError(t, err)
-	server.APIVersion = "1.24"
 
 	addr := server.Start(t)
 	defer server.Close()
@@ -953,21 +945,20 @@ func TestContainerStateFilter(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		containerStates := []moby_container.ContainerState{
-			moby_container.StateCreated,
-			moby_container.StateRestarting,
-			moby_container.StateRunning,
-			moby_container.StateRemoving,
-			moby_container.StatePaused,
-			moby_container.StateExited,
-			moby_container.StateDead,
+		containerStates := []container.ContainerState{
+			container.StateCreated,
+			container.StateRestarting,
+			container.StateRunning,
+			container.StateRemoving,
+			container.StatePaused,
+			container.StateExited,
+			container.StateDead,
 		}
 
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup the server
 			server, err := mock.NewServerFromFiles("testdata")
 			require.NoError(t, err)
-			server.APIVersion = "1.24"
 
 			// Make sure we request to list all container states
 			server.ListParams = map[string]string{"all": "1"}
@@ -980,9 +971,9 @@ func TestContainerStateFilter(t *testing.T) {
 				break
 			}
 			// Fake states data
-			server.List = make([]moby_container.Summary, 0, len(containerStates))
+			server.List = make([]container.Summary, 0, len(containerStates))
 			for _, v := range containerStates {
-				server.List = append(server.List, moby_container.Summary{
+				server.List = append(server.List, container.Summary{
 					ID:    id,
 					Names: []string{string(v)},
 					State: v,
@@ -1041,7 +1032,6 @@ func TestContainerName(t *testing.T) {
 			// Setup the server
 			server, err := mock.NewServerFromFiles("testdata")
 			require.NoError(t, err)
-			server.APIVersion = "1.24"
 
 			// Make sure we request to list all container states
 			server.ListParams = map[string]string{"all": "1"}
@@ -1055,7 +1045,7 @@ func TestContainerName(t *testing.T) {
 			}
 
 			// Fake the container list
-			server.List = []moby_container.Summary{
+			server.List = []container.Summary{
 				{
 					ID:    id,
 					Names: []string{"/logspout"},
@@ -1341,7 +1331,6 @@ func TestStartupErrorBehaviorRetry(t *testing.T) {
 	// Start the server again and check we can gather now
 	server, err := mock.NewServerFromFiles("testdata")
 	require.NoError(t, err)
-	server.APIVersion = "1.24"
 
 	addr := server.Start(t)
 	defer server.Close()
@@ -1353,7 +1342,6 @@ func TestStartupErrorBehaviorRetry(t *testing.T) {
 func TestStartupSuccess(t *testing.T) {
 	server, err := mock.NewServerFromFiles("testdata")
 	require.NoError(t, err)
-	server.APIVersion = "1.24"
 
 	addr := server.Start(t)
 	defer server.Close()

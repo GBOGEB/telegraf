@@ -28,7 +28,7 @@ type statistics struct {
 
 func (p *Ping) pingToURL(acc telegraf.Accumulator, host string) {
 	tags := map[string]string{"url": host}
-	fields := map[string]interface{}{"result_code": 0}
+	fields := map[string]any{"result_code": 0}
 
 	args := p.args(host)
 	totalTimeout := 60.0
@@ -91,6 +91,10 @@ func (p *Ping) args(url string) []string {
 		args = append(args, "-w", strconv.FormatFloat(timeout*1000, 'f', 0, 64))
 	}
 
+	if p.Interface != "" {
+		args = append(args, "-S", p.Interface)
+	}
+
 	args = append(args, url)
 
 	return args
@@ -125,11 +129,9 @@ func processPingOutput(out string) (statistics, error) {
 		packetsTransmitted: 0,
 		replyReceived:      0,
 		packetsReceived:    0,
-		roundTripTimeStats: roundTripTimeStats{
-			min: -1,
-			avg: -1,
-			max: -1,
-		},
+		min:                -1,
+		avg:                -1,
+		max:                -1,
 	}
 
 	// statsLine data should contain 4 members: entireExpression + ( Send, Receive, Lost )

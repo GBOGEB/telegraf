@@ -183,7 +183,7 @@ func (p *Prometheus) watchPod(ctx context.Context, clientset *kubernetes.Clients
 
 	podinformer := f.Core().V1().Pods()
 	_, err := podinformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(newObj interface{}) {
+		AddFunc: func(newObj any) {
 			newPod, ok := newObj.(*corev1.Pod)
 			if !ok {
 				p.Log.Errorf("[BUG] received unexpected object: %v", newObj)
@@ -194,7 +194,7 @@ func (p *Prometheus) watchPod(ctx context.Context, clientset *kubernetes.Clients
 			}
 		},
 		// On Pod status updates and regular reList by Informer
-		UpdateFunc: func(_, newObj interface{}) {
+		UpdateFunc: func(_, newObj any) {
 			newPod, ok := newObj.(*corev1.Pod)
 			if !ok {
 				p.Log.Errorf("[BUG] received unexpected object: %v", newObj)
@@ -217,7 +217,7 @@ func (p *Prometheus) watchPod(ctx context.Context, clientset *kubernetes.Clients
 				unregisterPod(podID, p)
 			}
 		},
-		DeleteFunc: func(oldObj interface{}) {
+		DeleteFunc: func(oldObj any) {
 			key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(oldObj)
 			if err == nil {
 				unregisterPod(podID(key), p)
@@ -417,12 +417,8 @@ func registerPod(pod *corev1.Pod, p *Prometheus) {
 		}
 	}
 
-	tags["pod_name"] = pod.Name
-	podNamespace := "namespace"
-	if p.PodNamespaceLabelName != "" {
-		podNamespace = p.PodNamespaceLabelName
-	}
-	tags[podNamespace] = pod.Namespace
+	tags[p.PodNameLabelName] = pod.Name
+	tags[p.PodNamespaceLabelName] = pod.Namespace
 
 	// add labels as metrics tags, subject to include/exclude filters
 	for k, v := range pod.Labels {

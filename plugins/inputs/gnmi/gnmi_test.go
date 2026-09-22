@@ -22,30 +22,12 @@ import (
 	"github.com/influxdata/telegraf"
 	"github.com/influxdata/telegraf/config"
 	"github.com/influxdata/telegraf/metric"
+	common_gnmi "github.com/influxdata/telegraf/plugins/common/gnmi"
+	"github.com/influxdata/telegraf/plugins/common/gnmi/extensions/jnpr_gnmi_extention"
 	"github.com/influxdata/telegraf/plugins/inputs"
-	"github.com/influxdata/telegraf/plugins/inputs/gnmi/extensions/jnpr_gnmi_extention"
 	"github.com/influxdata/telegraf/plugins/parsers/influx"
 	"github.com/influxdata/telegraf/testutil"
 )
-
-func TestParsePath(t *testing.T) {
-	path := "/foo/bar/bla[shoo=woo][shoop=/woop/]/z"
-	parsed, err := parsePath("theorigin", path, "thetarget")
-
-	require.NoError(t, err)
-	require.Equal(t, "theorigin", parsed.Origin)
-	require.Equal(t, "thetarget", parsed.Target)
-	require.Equal(t, []*gnmi.PathElem{{Name: "foo"}, {Name: "bar"},
-		{Name: "bla", Key: map[string]string{"shoo": "woo", "shoop": "/woop/"}}, {Name: "z"}}, parsed.Elem)
-
-	parsed, err = parsePath("", "", "")
-	require.NoError(t, err)
-	require.Equal(t, &gnmi.Path{}, parsed)
-
-	parsed, err = parsePath("", "/foo[[", "")
-	require.Nil(t, parsed)
-	require.Error(t, err)
-}
 
 func TestWaitError(t *testing.T) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -210,7 +192,7 @@ func TestNotification(t *testing.T) {
 				Log:      testutil.Logger{},
 				Encoding: "proto",
 				Redial:   config.Duration(1 * time.Second),
-				Subscriptions: []subscription{
+				Subscriptions: []common_gnmi.Subscription{
 					{
 						Name:             "alias",
 						Origin:           "type",
@@ -246,7 +228,7 @@ func TestNotification(t *testing.T) {
 						"name":   "str",
 						"uint64": "1234",
 					},
-					map[string]interface{}{
+					map[string]any{
 						"some/path": int64(5678),
 					},
 					time.Unix(0, 0),
@@ -258,7 +240,7 @@ func TestNotification(t *testing.T) {
 						"source": "127.0.0.1",
 						"foo":    "bar",
 					},
-					map[string]interface{}{
+					map[string]any{
 						"other/path": "foobar",
 						"other/this": "that",
 					},
@@ -273,7 +255,7 @@ func TestNotification(t *testing.T) {
 						"name":   "str2",
 						"uint64": "1234",
 					},
-					map[string]interface{}{
+					map[string]any{
 						"some/path": "123",
 					},
 					time.Unix(0, 0),
@@ -285,7 +267,7 @@ func TestNotification(t *testing.T) {
 						"source": "127.0.0.1",
 						"foo":    "bar2",
 					},
-					map[string]interface{}{
+					map[string]any{
 						"other/path": "foobar",
 						"other/this": "that",
 					},
@@ -299,7 +281,7 @@ func TestNotification(t *testing.T) {
 				Log:      testutil.Logger{},
 				Encoding: "proto",
 				Redial:   config.Duration(1 * time.Second),
-				Subscriptions: []subscription{
+				Subscriptions: []common_gnmi.Subscription{
 					{
 						Name:             "PHY_COUNTERS",
 						Origin:           "type",
@@ -355,7 +337,7 @@ func TestNotification(t *testing.T) {
 						"source":  "127.0.0.1",
 						"port_id": "1",
 					},
-					map[string]interface{}{
+					map[string]any{
 						"oper_speed": 42,
 					},
 					time.Unix(0, 0),
@@ -368,18 +350,16 @@ func TestNotification(t *testing.T) {
 				Log:      testutil.Logger{},
 				Encoding: "proto",
 				Redial:   config.Duration(1 * time.Second),
-				TagSubscriptions: []tagSubscription{
+				TagSubscriptions: []common_gnmi.TagSubscription{
 					{
-						subscription: subscription{
-							Name:             "oc-neigh-desc",
-							Origin:           "openconfig",
-							Path:             "/network-instances/network-instance/protocols/protocol/bgp/neighbors/neighbor/state/description",
-							SubscriptionMode: "on_change",
-						},
-						Elements: []string{"network-instance", "protocol", "neighbor"},
+						Name:             "oc-neigh-desc",
+						Origin:           "openconfig",
+						Path:             "/network-instances/network-instance/protocols/protocol/bgp/neighbors/neighbor/state/description",
+						SubscriptionMode: "on_change",
+						Elements:         []string{"network-instance", "protocol", "neighbor"},
 					},
 				},
-				Subscriptions: []subscription{
+				Subscriptions: []common_gnmi.Subscription{
 					{
 						Name:             "oc-neigh-state",
 						Origin:           "openconfig",
@@ -513,7 +493,7 @@ func TestNotification(t *testing.T) {
 						"/network-instances/network-instance/protocols/protocol/name": "BGP",
 						"identifier": "BGP",
 					},
-					map[string]interface{}{
+					map[string]any{
 						"session_state": "ESTABLISHED",
 					},
 					time.Unix(0, 0),
@@ -526,7 +506,7 @@ func TestNotification(t *testing.T) {
 				Log:      testutil.Logger{},
 				Encoding: "proto",
 				Redial:   config.Duration(1 * time.Second),
-				Subscriptions: []subscription{
+				Subscriptions: []common_gnmi.Subscription{
 					{
 						Name:             "interfaces",
 						Origin:           "openconfig",
@@ -619,7 +599,7 @@ func TestNotification(t *testing.T) {
 						"source": "127.0.0.1",
 						"name":   "Ethernet1",
 					},
-					map[string]interface{}{
+					map[string]any{
 						"in_broadcast_pkts":  uint64(0),
 						"in_discards":        uint64(0),
 						"in_errors":          uint64(0),
@@ -644,7 +624,7 @@ func TestNotification(t *testing.T) {
 				Encoding:                      "proto",
 				Redial:                        config.Duration(1 * time.Second),
 				EnforceFirstNamespaceAsOrigin: true,
-				Subscriptions: []subscription{
+				Subscriptions: []common_gnmi.Subscription{
 					{
 						Name:             "temperature",
 						Origin:           "openconfig-platform",
@@ -679,7 +659,7 @@ func TestNotification(t *testing.T) {
 												{Name: "low-threshold"},
 											}},
 										Val: &gnmi.TypedValue{
-											Value: &gnmi.TypedValue_FloatVal{FloatVal: 0},
+											Value: &gnmi.TypedValue_DoubleVal{DoubleVal: 0},
 										},
 									},
 									{
@@ -718,7 +698,7 @@ func TestNotification(t *testing.T) {
 												{Name: "critical-high-threshold"},
 											}},
 										Val: &gnmi.TypedValue{
-											Value: &gnmi.TypedValue_FloatVal{FloatVal: 94},
+											Value: &gnmi.TypedValue_DoubleVal{DoubleVal: 94},
 										},
 									},
 									{
@@ -728,7 +708,7 @@ func TestNotification(t *testing.T) {
 												{Name: "current"},
 											}},
 										Val: &gnmi.TypedValue{
-											Value: &gnmi.TypedValue_FloatVal{FloatVal: 29},
+											Value: &gnmi.TypedValue_DoubleVal{DoubleVal: 29},
 										},
 									},
 									{
@@ -738,7 +718,7 @@ func TestNotification(t *testing.T) {
 												{Name: "high-threshold"},
 											}},
 										Val: &gnmi.TypedValue{
-											Value: &gnmi.TypedValue_FloatVal{FloatVal: 90},
+											Value: &gnmi.TypedValue_DoubleVal{DoubleVal: 90},
 										},
 									},
 								},
@@ -756,7 +736,7 @@ func TestNotification(t *testing.T) {
 						"source": "127.0.0.1",
 						"name":   "TEMP 1",
 					},
-					map[string]interface{}{
+					map[string]any{
 						"temperature/timestamp":               "2022-11-18T11:39:26Z",
 						"temperature/low_threshold":           float64(0),
 						"temperature/current":                 float64(29),
@@ -774,10 +754,10 @@ func TestNotification(t *testing.T) {
 			plugin: &GNMI{
 				Log:                           testutil.Logger{},
 				Encoding:                      "proto",
-				VendorSpecific:                []string{"juniper_header"},
+				VendorExt:                     []string{"juniper_header"},
 				Redial:                        config.Duration(1 * time.Second),
 				EnforceFirstNamespaceAsOrigin: true,
-				Subscriptions: []subscription{
+				Subscriptions: []common_gnmi.Subscription{
 					{
 						Name:             "type",
 						Origin:           "openconfig-platform",
@@ -848,7 +828,7 @@ func TestNotification(t *testing.T) {
 						"sub_component_id": "1",
 						"component":        "PICD",
 					},
-					map[string]interface{}{
+					map[string]any{
 						"type": "LINECARD",
 					},
 					time.Unix(0, 0),

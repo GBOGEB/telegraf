@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/swarm"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/swarm"
+	"github.com/moby/moby/client"
 
 	"github.com/influxdata/telegraf"
 	"github.com/influxdata/telegraf/internal/docker"
@@ -27,19 +27,20 @@ func (d *Docker) gatherInfo(acc telegraf.Accumulator) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(d.Timeout))
 	defer cancel()
 
-	info, err := d.client.Info(ctx)
+	result, err := d.client.Info(ctx, client.InfoOptions{})
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			return errors.New("timeout retrieving docker engine info")
 		}
 		return fmt.Errorf("getting info failed: %w", err)
 	}
+	info := result.Info
 
 	tags := map[string]string{
 		"engine_host":    d.engineHost,
 		"server_version": d.serverVersion,
 	}
-	fields := map[string]interface{}{
+	fields := map[string]any{
 		"n_cpus":                  info.NCPU,
 		"n_used_file_descriptors": info.NFd,
 		"n_containers":            info.Containers,
@@ -53,15 +54,15 @@ func (d *Docker) gatherInfo(acc telegraf.Accumulator) error {
 
 	// Add metrics
 	acc.AddFields("docker", fields, tags, now)
-	acc.AddFields("docker", map[string]interface{}{"memory_total": info.MemTotal}, tags, now)
+	acc.AddFields("docker", map[string]any{"memory_total": info.MemTotal}, tags, now)
 
 	// Get storage metrics
 	tags["unit"] = "bytes"
 
 	var poolName string
-	deviceMapperFields := make(map[string]interface{}, len(info.DriverStatus))
-	dataFields := make(map[string]interface{})
-	metadataFields := make(map[string]interface{})
+	deviceMapperFields := make(map[string]any, len(info.DriverStatus))
+	dataFields := make(map[string]any)
+	metadataFields := make(map[string]any)
 	for _, rawData := range info.DriverStatus {
 		name := strings.ToLower(strings.ReplaceAll(rawData[0], " ", "_"))
 		if name == "pool_name" {
@@ -92,14 +93,12 @@ func (d *Docker) gatherInfo(acc telegraf.Accumulator) error {
 		// Legacy devicemapper measurements
 		if name == "pool_blocksize" {
 			// pool blocksize
-			acc.AddFields("docker", map[string]interface{}{"pool_blocksize": value}, tags, now)
-		} else if strings.HasPrefix(name, "data_space_") {
+			acc.AddFields("docker", map[string]any{"pool_blocksize": value}, tags, now)
+		} else if fieldName, ok := strings.CutPrefix(name, "data_space_"); ok {
 			// data space
-			fieldName := strings.TrimPrefix(name, "data_space_")
 			dataFields[fieldName] = value
-		} else if strings.HasPrefix(name, "metadata_space_") {
+		} else if fieldName, ok := strings.CutPrefix(name, "metadata_space_"); ok {
 			// metadata space
-			fieldName := strings.TrimPrefix(name, "metadata_space_")
 			metadataFields[fieldName] = value
 		}
 	}
@@ -130,7 +129,7 @@ func (d *Docker) gatherSwarmInfo(acc telegraf.Accumulator) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(d.Timeout))
 	defer cancel()
 
-	services, err := d.client.ServiceList(ctx, swarm.ServiceListOptions{})
+	services, err := d.client.ServiceList(ctx, client.ServiceListOptions{})
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			return errors.New("timeout retrieving swarm service list")
@@ -138,15 +137,15 @@ func (d *Docker) gatherSwarmInfo(acc telegraf.Accumulator) error {
 		return fmt.Errorf("getting service list failed: %w", err)
 	}
 
-	if len(services) > 0 {
-		tasks, err := d.client.TaskList(ctx, swarm.TaskListOptions{})
+	if len(services.Items) > 0 {
+		tasks, err := d.client.TaskList(ctx, client.TaskListOptions{})
 		if err != nil {
 			return fmt.Errorf("getting task list failed: %w", err)
 		}
 
-		tasksNoShutdown := make(map[string]uint64, len(tasks))
-		running := make(map[string]int, len(tasks))
-		for _, task := range tasks {
+		tasksNoShutdown := make(map[string]uint64, len(tasks.Items))
+		running := make(map[string]int, len(tasks.Items))
+		for _, task := range tasks.Items {
 			if task.DesiredState != swarm.TaskStateShutdown {
 				tasksNoShutdown[task.ServiceID]++
 			}
@@ -156,9 +155,9 @@ func (d *Docker) gatherSwarmInfo(acc telegraf.Accumulator) error {
 			}
 		}
 
-		for _, service := range services {
+		for _, service := range services.Items {
 			tags := make(map[string]string, 3)
-			fields := make(map[string]interface{}, 2)
+			fields := make(map[string]any, 2)
 			now := time.Now()
 			tags["service_id"] = service.ID
 			tags["service_name"] = service.Spec.Name
@@ -194,11 +193,11 @@ func (d *Docker) gatherSwarmInfo(acc telegraf.Accumulator) error {
 	return nil
 }
 
-func (d *Docker) gatherDiskUsage(acc telegraf.Accumulator, opts types.DiskUsageOptions) error {
+func (d *Docker) gatherDiskUsage(acc telegraf.Accumulator) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(d.Timeout))
 	defer cancel()
 
-	du, err := d.client.DiskUsage(ctx, opts)
+	du, err := d.client.DiskUsage(ctx, d.diskUsage)
 	if err != nil {
 		return fmt.Errorf("getting disk usage failed: %w", err)
 	}
@@ -206,8 +205,8 @@ func (d *Docker) gatherDiskUsage(acc telegraf.Accumulator, opts types.DiskUsageO
 	now := time.Now()
 
 	// Layers size
-	fields := map[string]interface{}{
-		"layers_size": du.LayersSize,
+	fields := map[string]any{
+		"layers_size": du.Images.TotalSize,
 	}
 
 	tags := map[string]string{
@@ -218,8 +217,8 @@ func (d *Docker) gatherDiskUsage(acc telegraf.Accumulator, opts types.DiskUsageO
 	acc.AddFields("docker_disk_usage", fields, tags, now)
 
 	// Containers
-	for _, cntnr := range du.Containers {
-		fields := map[string]interface{}{
+	for _, cntnr := range du.Containers.Items {
+		fields := map[string]any{
 			"size_rw":      cntnr.SizeRw,
 			"size_root_fs": cntnr.SizeRootFs,
 		}
@@ -242,8 +241,8 @@ func (d *Docker) gatherDiskUsage(acc telegraf.Accumulator, opts types.DiskUsageO
 	}
 
 	// Images
-	for _, image := range du.Images {
-		fields := map[string]interface{}{
+	for _, image := range du.Images.Items {
+		fields := map[string]any{
 			"size":        image.Size,
 			"shared_size": image.SharedSize,
 		}
@@ -264,8 +263,8 @@ func (d *Docker) gatherDiskUsage(acc telegraf.Accumulator, opts types.DiskUsageO
 	}
 
 	// Volumes
-	for _, volume := range du.Volumes {
-		fields := map[string]interface{}{
+	for _, volume := range du.Volumes.Items {
+		fields := map[string]any{
 			"size": volume.UsageData.Size,
 		}
 
@@ -283,7 +282,7 @@ func (d *Docker) gatherDiskUsage(acc telegraf.Accumulator, opts types.DiskUsageO
 
 func (d *Docker) gatherContainerInfo(acc telegraf.Accumulator, cntnr container.Summary) (map[string]string, error) {
 	containerName := parseContainerName(cntnr.Names)
-	if containerName == "" || !d.containerFilter.Match(containerName) || !d.stateFilter.Match(cntnr.State) {
+	if containerName == "" || !d.containerFilter.Match(containerName) || !d.stateFilter.Match(string(cntnr.State)) {
 		return nil, nil
 	}
 	imageName, imageVersion := docker.ParseImage(cntnr.Image)
@@ -309,13 +308,14 @@ func (d *Docker) gatherContainerInfo(acc telegraf.Accumulator, cntnr container.S
 	ctxInspect, cancelInspect := context.WithTimeout(context.Background(), time.Duration(d.Timeout))
 	defer cancelInspect()
 
-	info, err := d.client.ContainerInspect(ctxInspect, cntnr.ID)
+	result, err := d.client.ContainerInspect(ctxInspect, cntnr.ID, client.ContainerInspectOptions{})
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			return nil, errors.New("timeout retrieving container environment")
 		}
 		return nil, fmt.Errorf("inspecting container failed: %w", err)
 	}
+	info := result.Container
 
 	// Add whitelisted environment variables to tags
 	for _, configvar := range d.TagEnvironment {
@@ -329,7 +329,7 @@ func (d *Docker) gatherContainerInfo(acc telegraf.Accumulator, cntnr container.S
 	}
 
 	if info.State != nil {
-		tags["container_status"] = info.State.Status
+		tags["container_status"] = string(info.State.Status)
 		addStateMetric(acc, &info, tags, cntnr.ID)
 		addHealthMetric(acc, &info, tags)
 	}
@@ -343,18 +343,17 @@ func (d *Docker) gatherContainerStats(acc telegraf.Accumulator, tags map[string]
 	defer cancelStats()
 
 	// Get container stats
-	r, err := d.client.ContainerStats(ctxStats, id, false)
+	result, err := d.client.ContainerStats(ctxStats, id, client.ContainerStatsOptions{IncludePreviousSample: true})
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			return errors.New("timeout retrieving container stats")
 		}
 		return fmt.Errorf("getting container stats failed: %w", err)
 	}
-	defer r.Body.Close()
+	defer result.Body.Close()
 
-	daemonOSType := r.OSType
 	var stats *container.StatsResponse
-	if err := json.NewDecoder(r.Body).Decode(&stats); err != nil {
+	if err := json.NewDecoder(result.Body).Decode(&stats); err != nil {
 		if !errors.Is(err, io.EOF) {
 			return fmt.Errorf("error decoding stats response: %w", err)
 		}
@@ -376,8 +375,8 @@ func (d *Docker) gatherContainerStats(acc telegraf.Accumulator, tags map[string]
 		timestamp = time.Now()
 	}
 
-	addMemoryMetrics(acc, stats, tags, id, daemonOSType, timestamp)
-	d.addCPUMetrics(acc, stats, tags, id, daemonOSType, timestamp)
+	addMemoryMetrics(acc, stats, tags, id, timestamp)
+	d.addCPUMetrics(acc, stats, tags, id, timestamp)
 	d.addNetworkMetrics(acc, stats, tags, id, timestamp)
 	d.addBlockIOMetrics(acc, stats, tags, id, timestamp)
 
@@ -385,7 +384,7 @@ func (d *Docker) gatherContainerStats(acc telegraf.Accumulator, tags map[string]
 }
 
 func addStateMetric(acc telegraf.Accumulator, info *container.InspectResponse, tags map[string]string, id string) {
-	statefields := map[string]interface{}{
+	statefields := map[string]any{
 		"oomkilled":     info.State.OOMKilled,
 		"pid":           info.State.Pid,
 		"exitcode":      info.State.ExitCode,
@@ -420,15 +419,15 @@ func addHealthMetric(acc telegraf.Accumulator, info *container.InspectResponse, 
 		return
 	}
 
-	healthfields := map[string]interface{}{
-		"health_status":  info.State.Health.Status,
-		"failing_streak": info.ContainerJSONBase.State.Health.FailingStreak,
+	healthfields := map[string]any{
+		"health_status":  string(info.State.Health.Status),
+		"failing_streak": info.State.Health.FailingStreak,
 	}
 	acc.AddFields("docker_container_health", healthfields, tags, now())
 }
 
-func addMemoryMetrics(acc telegraf.Accumulator, stats *container.StatsResponse, tags map[string]string, id, daemonOSType string, ts time.Time) {
-	memfields := map[string]interface{}{
+func addMemoryMetrics(acc telegraf.Accumulator, stats *container.StatsResponse, tags map[string]string, id string, ts time.Time) {
+	memfields := map[string]any{
 		"container_id": id,
 	}
 
@@ -472,7 +471,7 @@ func addMemoryMetrics(acc telegraf.Accumulator, stats *container.StatsResponse, 
 		memfields["fail_count"] = stats.MemoryStats.Failcnt
 	}
 
-	if daemonOSType != "windows" {
+	if stats.OSType != "windows" {
 		memfields["limit"] = stats.MemoryStats.Limit
 		memfields["max_usage"] = stats.MemoryStats.MaxUsage
 
@@ -489,9 +488,9 @@ func addMemoryMetrics(acc telegraf.Accumulator, stats *container.StatsResponse, 
 	acc.AddFields("docker_container_mem", memfields, tags, ts)
 }
 
-func (d *Docker) addCPUMetrics(acc telegraf.Accumulator, stats *container.StatsResponse, tags map[string]string, id, daemonOSType string, ts time.Time) {
+func (d *Docker) addCPUMetrics(acc telegraf.Accumulator, stats *container.StatsResponse, tags map[string]string, id string, ts time.Time) {
 	if slices.Contains(d.TotalInclude, "cpu") {
-		cpufields := map[string]interface{}{
+		cpufields := map[string]any{
 			"usage_total":                  stats.CPUStats.CPUUsage.TotalUsage,
 			"usage_in_usermode":            stats.CPUStats.CPUUsage.UsageInUsermode,
 			"usage_in_kernelmode":          stats.CPUStats.CPUUsage.UsageInKernelmode,
@@ -502,7 +501,7 @@ func (d *Docker) addCPUMetrics(acc telegraf.Accumulator, stats *container.StatsR
 			"container_id":                 id,
 		}
 
-		if daemonOSType != "windows" {
+		if stats.OSType != "windows" {
 			previousCPU := stats.PreCPUStats.CPUUsage.TotalUsage
 			previousSystem := stats.PreCPUStats.SystemUsage
 			cpuPercent := docker_stats.CalculateCPUPercentUnix(previousCPU, previousSystem, stats)
@@ -529,7 +528,7 @@ func (d *Docker) addCPUMetrics(acc telegraf.Accumulator, stats *container.StatsR
 		for i, percpu := range percpuusage {
 			percputags := maps.Clone(tags)
 			percputags["cpu"] = fmt.Sprintf("cpu%d", i)
-			fields := map[string]interface{}{
+			fields := map[string]any{
 				"usage_total":  percpu,
 				"container_id": id,
 			}
@@ -542,7 +541,7 @@ func (d *Docker) addCPUMetrics(acc telegraf.Accumulator, stats *container.StatsR
 func (d *Docker) addNetworkMetrics(acc telegraf.Accumulator, stats *container.StatsResponse, tags map[string]string, id string, ts time.Time) {
 	totalNetworkStatMap := make(map[string]uint64)
 	for network, netstats := range stats.Networks {
-		netfields := map[string]interface{}{
+		netfields := map[string]any{
 			"rx_dropped":   netstats.RxDropped,
 			"rx_bytes":     netstats.RxBytes,
 			"rx_errors":    netstats.RxErrors,
@@ -586,7 +585,7 @@ func (d *Docker) addNetworkMetrics(acc telegraf.Accumulator, stats *container.St
 		nettags := maps.Clone(tags)
 		nettags["network"] = "total"
 
-		fields := make(map[string]interface{}, len(totalNetworkStatMap)+1)
+		fields := make(map[string]any, len(totalNetworkStatMap)+1)
 		fields["container_id"] = id
 		for k, v := range totalNetworkStatMap {
 			fields[k] = v
@@ -597,11 +596,11 @@ func (d *Docker) addNetworkMetrics(acc telegraf.Accumulator, stats *container.St
 
 func (d *Docker) addBlockIOMetrics(acc telegraf.Accumulator, stat *container.StatsResponse, tags map[string]string, id string, ts time.Time) {
 	// Make a map of devices to their block io ioStats
-	ioStats := make(map[string]map[string]interface{})
+	ioStats := make(map[string]map[string]any)
 	for _, metric := range stat.BlkioStats.IoServiceBytesRecursive {
 		device := fmt.Sprintf("%d:%d", metric.Major, metric.Minor)
 		if _, ok := ioStats[device]; !ok {
-			ioStats[device] = make(map[string]interface{})
+			ioStats[device] = make(map[string]any)
 		}
 		field := "io_service_bytes_recursive_" + strings.ToLower(metric.Op)
 		ioStats[device][field] = metric.Value
@@ -609,7 +608,7 @@ func (d *Docker) addBlockIOMetrics(acc telegraf.Accumulator, stat *container.Sta
 	for _, metric := range stat.BlkioStats.IoServicedRecursive {
 		device := fmt.Sprintf("%d:%d", metric.Major, metric.Minor)
 		if _, ok := ioStats[device]; !ok {
-			ioStats[device] = make(map[string]interface{}, 1)
+			ioStats[device] = make(map[string]any, 1)
 		}
 		field := "io_serviced_recursive_" + strings.ToLower(metric.Op)
 		ioStats[device][field] = metric.Value
@@ -677,7 +676,7 @@ func (d *Docker) addBlockIOMetrics(acc telegraf.Accumulator, stat *container.Sta
 		iotags := maps.Clone(tags)
 		iotags["device"] = "total"
 
-		fields := make(map[string]interface{}, len(totalStatMap)+1)
+		fields := make(map[string]any, len(totalStatMap)+1)
 		fields["container_id"] = id
 		for k, v := range totalStatMap {
 			fields[k] = v
